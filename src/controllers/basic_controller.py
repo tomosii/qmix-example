@@ -4,19 +4,30 @@ import torch as th
 
 
 # This multi-agent controller shares parameters between agents
+# エージェント間でパラメータを共有するマルチエージェントコントローラー
+# 全エージェントで1つのニューラルネットワークを共有する
 class BasicMAC:
     def __init__(self, scheme, groups, args):
         self.n_agents = args.n_agents
         self.args = args
+
+        # 部分観測の次元数
         input_shape = self._get_input_shape(scheme)
+
+        # エージェントネットワークを生成
         self._build_agents(input_shape)
+
         self.agent_output_type = args.agent_output_type
 
+        # 行動選択アルゴリズムはepsilon-greedy
         self.action_selector = EpsilonGreedyActionSelector(args)
 
         self.hidden_states = None
 
     def select_actions(self, ep_batch, t_ep, t_env, bs=slice(None), test_mode=False):
+        """
+        エピソードの開始から現在までの情報を受け取り、行動を選択する
+        """
         # Only select actions for the selected batch elements in bs
         avail_actions = ep_batch["avail_actions"][:, t_ep]
         agent_outputs = self.forward(ep_batch, t_ep, test_mode=test_mode)
@@ -58,6 +69,9 @@ class BasicMAC:
         return agent_outs.view(ep_batch.batch_size, self.n_agents, -1)
 
     def init_hidden(self, batch_size):
+        """
+        RNNの隠れ状態を初期化
+        """
         self.hidden_states = self.agent.init_hidden().unsqueeze(
             0).expand(batch_size, self.n_agents, -1)  # bav
 
@@ -78,6 +92,9 @@ class BasicMAC:
             th.load("{}/agent.th".format(path), map_location=lambda storage, loc: storage))
 
     def _build_agents(self, input_shape):
+        """
+        エージェントネットワークを生成する
+        """
         self.agent = RNNAgent(input_shape, self.args)
         pass
 
@@ -101,10 +118,20 @@ class BasicMAC:
         return inputs
 
     def _get_input_shape(self, scheme):
+        """
+        エージェントの部分観測の次元数を取得
+        """
+        # 環境から取得できる"obs_shape"
         input_shape = scheme["obs"]["vshape"]
+
         if self.args.obs_last_action:
-            input_shape += scheme["actions_onehot"]["vshape"][0]
+            # Include the agent's last action (one_hot) in the observation
+            # 観測にエージェントの前回の行動を含めるか？
+            input_shape += scheme["actions_onehot"]["vshape"][0]  # 行動の次元数を追加
         if self.args.obs_agent_id:
+            # Include the agent's one_hot id in the observation
+            # 観測に全エージェントのOne Hot IDを含めるか？
+            # 全エージェントでネットワークを共有するため、どのエージェントの観測かを区別するために必要
             input_shape += self.n_agents
 
         return input_shape

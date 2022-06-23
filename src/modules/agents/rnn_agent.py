@@ -3,6 +3,10 @@ import torch.nn.functional as F
 
 
 class RNNAgent(nn.Module):
+    """
+    RNN（GRU）を用いたエージェントネットワーク
+    """
+
     def __init__(self, input_shape, args):
         super(RNNAgent, self).__init__()
         self.args = args
@@ -12,6 +16,9 @@ class RNNAgent(nn.Module):
         self.fc2 = nn.Linear(args.rnn_hidden_dim, args.n_actions)
 
     def init_hidden(self):
+        """
+        RNNの隠れ層を0で初期化
+        """
         # make hidden states on same device as model
         return self.fc1.weight.new(1, self.args.rnn_hidden_dim).zero_()
 

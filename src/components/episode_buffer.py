@@ -91,6 +91,11 @@ class EpisodeBatch:
         self.device = device
 
     def update(self, data, bs=slice(None), ts=slice(None), mark_filled=True):
+        """
+        バッチにデータを追加
+        data: 追加するデータ
+        ts: タイムステップ
+        """
         slices = self._parse_slices((bs, ts))
         for k, v in data.items():
             if k in self.data.transition_data:

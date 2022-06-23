@@ -92,10 +92,15 @@ def run_sequential(args, logger: Logger):
     # Default/Base scheme
     # 環境やエージェントに関するスキーマを定義
     scheme = {
+        # グローバル状態の次元数
         "state": {"vshape": env_info["state_shape"]},
+        # 各エージェントの部分観測
         "obs": {"vshape": env_info["obs_shape"], "group": "agents"},
+        # 行動
         "actions": {"vshape": (1,), "group": "agents", "dtype": th.long},
+        # 選択可能な行動
         "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
+        # 報酬
         "reward": {"vshape": (1,)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
@@ -165,6 +170,7 @@ def run_sequential(args, logger: Logger):
 
     # start training
     # ----------------- トレーニング開始！！！ -----------------
+
     episode = 0
     last_test_T = -args.test_interval - 1
     last_log_T = 0
@@ -179,7 +185,7 @@ def run_sequential(args, logger: Logger):
     while runner.t_env <= args.t_max:
 
         # Run for a whole episode at a time
-        # １つのエピソード全体を実行
+        # １つのエピソード全体を実行してバッチを取得
         episode_batch = runner.run(test_mode=False)
         # 経験再生バッファにエピソードを保存
         buffer.insert_episode_batch(episode_batch)
