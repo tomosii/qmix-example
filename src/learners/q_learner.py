@@ -40,6 +40,7 @@ class QLearner:
 
     def train(self, batch: EpisodeBatch, t_env: int, episode_num: int):
         # Get the relevant quantities
+        # バッチからデータを取り出す
         rewards = batch["reward"][:, :-1]
         actions = batch["actions"][:, :-1]
         terminated = batch["terminated"][:, :-1].float()
@@ -48,8 +49,10 @@ class QLearner:
         avail_actions = batch["avail_actions"]
 
         # Calculate estimated Q-Values
+        # Q値の予測値を求める
         mac_out = []
         self.mac.init_hidden(batch.batch_size)
+        # 各タイムステップごと
         for t in range(batch.max_seq_length):
             agent_outs = self.mac.forward(batch, t=t)
             mac_out.append(agent_outs)

@@ -4,9 +4,13 @@ import torch as th
 
 
 # This multi-agent controller shares parameters between agents
-# エージェント間でパラメータを共有するマルチエージェントコントローラー
-# 全エージェントで1つのニューラルネットワークを共有する
 class BasicMAC:
+    """
+    エージェント間でパラメータを共有するマルチエージェントコントローラー
+
+    全エージェントで1つのニューラルネットワークを共有する
+    """
+
     def __init__(self, scheme, groups, args):
         self.n_agents = args.n_agents
         self.args = args
@@ -36,6 +40,9 @@ class BasicMAC:
         return chosen_actions
 
     def forward(self, ep_batch, t, test_mode=False):
+        """
+
+        """
         agent_inputs = self._build_inputs(ep_batch, t)
         avail_actions = ep_batch["avail_actions"][:, t]
         agent_outs, self.hidden_states = self.agent(

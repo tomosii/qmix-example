@@ -14,7 +14,7 @@ class EpisodeBatch:
                  device="cpu"):
         self.scheme = scheme.copy()
         self.groups = groups
-        self.batch_size = batch_size
+        self.batch_size = batch_size  # batch_size = 1
         self.max_seq_length = max_seq_length
         self.preprocess = {} if preprocess is None else preprocess
         self.device = device
@@ -22,6 +22,7 @@ class EpisodeBatch:
         if data is not None:
             self.data = data
         else:
+            # 名前空間
             self.data = SN()
             self.data.transition_data = {}
             self.data.episode_data = {}
@@ -90,11 +91,12 @@ class EpisodeBatch:
             self.data.episode_data[k] = v.to(device)
         self.device = device
 
-    def update(self, data, bs=slice(None), ts=slice(None), mark_filled=True):
+    def update(self, data: dict, bs=slice(None), ts=slice(None), mark_filled=True):
         """
         バッチにデータを追加
         data: 追加するデータ
         ts: タイムステップ
+        bs: 
         """
         slices = self._parse_slices((bs, ts))
         for k, v in data.items():
@@ -221,15 +223,27 @@ class EpisodeBatch:
 
 
 class ReplayBuffer(EpisodeBatch):
+    """
+    経験再生用バッファ（エピソードを蓄積しておくメモリ）
+    """
+
     def __init__(self, scheme, groups, buffer_size, max_seq_length, preprocess=None, device="cpu"):
+        # EpisodeBatchを継承
+        # 巨大な1つのEpisodeBatchをReplayBufferとして用いる
         super(ReplayBuffer, self).__init__(scheme, groups, buffer_size,
                                            max_seq_length, preprocess=preprocess, device=device)
+        # メモリのバッファサイズ（記憶できるエピソード数） = 巨大なEpisodeBatchのバッチサイズ
         self.buffer_size = buffer_size  # same as self.batch_size but more explicit
+        # 現在記憶しているエピソード数
         self.buffer_index = 0
         self.episodes_in_buffer = 0
 
-    def insert_episode_batch(self, ep_batch):
+    def insert_episode_batch(self, ep_batch: EpisodeBatch):
+        """
+        1つのエピソードバッチをリプレイバッファに保存
+        """
         if self.buffer_index + ep_batch.batch_size <= self.buffer_size:
+            # まだバッファが満杯でなければ
             self.update(ep_batch.data.transition_data,
                         slice(self.buffer_index, self.buffer_index +
                               ep_batch.batch_size),
@@ -237,25 +251,41 @@ class ReplayBuffer(EpisodeBatch):
                         mark_filled=False)
             self.update(ep_batch.data.episode_data,
                         slice(self.buffer_index, self.buffer_index + ep_batch.batch_size))
+
+            # 現在のバッファのインデックスを更新（ep_batch.batch_size=1 なので +1）
             self.buffer_index = (self.buffer_index + ep_batch.batch_size)
+            # バッファに含まれるエピソード数（並列の際を考慮）
             self.episodes_in_buffer = max(
                 self.episodes_in_buffer, self.buffer_index)
+            # buffer_index が buffer_size を超えたらリセット
             self.buffer_index = self.buffer_index % self.buffer_size
             assert self.buffer_index < self.buffer_size
         else:
+            # バッファが満杯のとき
+            # 残り容量を計算
             buffer_left = self.buffer_size - self.buffer_index
+
+            # 分割してバッファに保存
             self.insert_episode_batch(ep_batch[0:buffer_left, :])
             self.insert_episode_batch(ep_batch[buffer_left:, :])
 
     def can_sample(self, batch_size):
+        """
+        バッファに十分にエピソードが溜まったか？
+        """
         return self.episodes_in_buffer >= batch_size
 
     def sample(self, batch_size):
+        """
+        バッファからエピソードを1つランダムに抽出
+        """
         assert self.can_sample(batch_size)
         if self.episodes_in_buffer == batch_size:
+            # サンプリングしたい数と溜まっている数が同じ
             return self[:batch_size]
         else:
             # Uniform sampling only atm
+            # ランダムにサンプリング
             ep_ids = np.random.choice(
                 self.episodes_in_buffer, batch_size, replace=False)
             return self[ep_ids]

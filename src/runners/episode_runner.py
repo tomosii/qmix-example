@@ -9,6 +9,9 @@ from utils.logging import Logger
 
 
 class EpisodeRunner:
+    """
+    環境から情報を取得 & 行動を出力しながらエピソードを実行する
+    """
 
     def __init__(self, args, logger: Logger):
         self.args = args
@@ -18,10 +21,12 @@ class EpisodeRunner:
 
         # 環境
         self.env = StarCraft2Env(**self.args.env_args)
-        # 最大タイムステップ
-        self.episode_limit = self.env.episode_limit
-        self.t = 0
 
+        # 最大タイムステップ数
+        self.episode_limit = self.env.episode_limit
+        # 現在のタイムステップ
+        self.t = 0
+        # 累計タイムステップ数
         self.t_env = 0
 
         # ログ用
@@ -67,7 +72,7 @@ class EpisodeRunner:
 
     def run(self, test_mode=False):
         """
-        1エピソードを実行
+        1エピソードを実行してバッチを返す
         """
 
         # 環境を初期化
