@@ -20,13 +20,9 @@
 
 ## main.py
 
-Sacred の `ex.run()`
-
-`@ex.main my_main()` が呼び出される
+Sacred(実験管理ツール) の `ex.run()` で `@ex.main my_main()` が呼び出される
 
 run.py の `run()`
-
----
 
 ## run.py
 
@@ -50,19 +46,13 @@ run.py の `run()`
 
 ========================================================
 
----
-
 ## runners/ EpisodeRunner
 
-`run()` → 1 エピソード全体を実行する
-
----
+`run()` → 1 エピソード全体を実行してバッチを返す
 
 ## components/ ReplayBuffer
 
 経験再生用メモリ（`EpisodeBatch`を継承）
-
----
 
 ## learners/ QLearner
 
@@ -72,21 +62,15 @@ Agent Network & Mixing Network をまとめている
 
 `train()` → バッチデータをもとに学習
 
----
-
 ## controllers/ BasicMAC
 
 マルチエージェントコントローラー（MAC）
 
 Agent Network（`RNNAgent`）の入出力を制御
 
----
-
 ## modules/agents/ RNNAgent
 
 RNN（GRU）を用いた Agent Network (`torch.nn`)
-
----
 
 ## modules/mixers/ QMixer
 

@@ -15,7 +15,7 @@ class EpisodeBatch:
         self.scheme = scheme.copy()
         self.groups = groups
         self.batch_size = batch_size  # batch_size = 1
-        self.max_seq_length = max_seq_length
+        self.max_seq_length = max_seq_length  # 最大タイムステップ数
         self.preprocess = {} if preprocess is None else preprocess
         self.device = device
 
@@ -195,7 +195,7 @@ class EpisodeBatch:
                 or isinstance(items, int)  # int i
                 # [a,b,c]
                 or (isinstance(items, (list, np.ndarray, th.LongTensor, th.cuda.LongTensor)))
-                ):
+            ):
             items = (items, slice(None))
 
         # Need the time indexing to be contiguous

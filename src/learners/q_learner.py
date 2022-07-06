@@ -5,6 +5,7 @@ from modules.mixers.qmix import QMixer
 import torch as th
 from torch.optim import RMSprop
 from controllers.basic_controller import BasicMAC
+from utils.logging import Logger
 
 
 class QLearner:
@@ -12,7 +13,7 @@ class QLearner:
     MAC(Agent Network)とMixingNetworkをまとめて、ネットワークの学習を行う
     """
 
-    def __init__(self, mac: BasicMAC, scheme, logger, args):
+    def __init__(self, mac: BasicMAC, scheme, logger: Logger, args):
         self.args = args
         self.mac = mac
         self.logger = logger
@@ -56,7 +57,7 @@ class QLearner:
         avail_actions = batch["avail_actions"]
 
         # Calculate estimated Q-Values
-        # ============ Agent Network（Main Network）のQ値の現在の予測値を求める ============
+        # ============ Agent Network（Main Network）のQ値の現在の値を求める ============
         mac_out = []
         # Agent Networkの隠れ状態を初期化
         self.mac.init_hidden(batch.batch_size)
@@ -97,16 +98,24 @@ class QLearner:
 
         # Max over target Q-Values
         # 次状態における最大のQ値
+
         if self.args.double_q:
             # Get actions that maximise live Q (for double q-learning)
             # DDQNの場合
+            # --------------
+            # DDQNでは目標値を見積もる際、
+            # まずMain Networkを用いて次状態の最大価値の行動を求め（ここが重要）、
+            # Target Networkを用いてその行動のQ値を求める
+            # DQN(2016 Nature)では行動を決める時もTarget Networkを用いていた
+            # --------------
             # エージェントごとのQ値の出力（予測値）
             mac_out_detach = mac_out.clone().detach()
             # 選択不可能な行動をつぶす
             mac_out_detach[avail_actions == 0] = -9999999
-            # 予測値の最大Q値がなぜ必要？？
+            # Main Networkで次状態における最大価値の行動を求める
             cur_max_actions = mac_out_detach[:, 1:].max(dim=3, keepdim=True)[1]
-            # 何をしている？？
+            # 上で求めた行動に対応するQ値はTarget Networkから抽出する
+            # (最大価値の行動をTarget Networkを用いて選択してはだめなのだろうか？)
             target_max_qvals = th.gather(
                 target_mac_out, 3, cur_max_actions).squeeze(3)
         else:
@@ -118,12 +127,12 @@ class QLearner:
         # Mixing Networkに入力して重みづけして足されたQ値を得る
         if self.mixer is not None:
             # （現在の予測値）
-            # 入力 : 全エージェントの実際に選択された行動のQ値 & グローバル状態
+            # 入力 : 全エージェントの実際に選択された行動のQ値 & グローバルな状態
             chosen_action_qvals = self.mixer(
                 chosen_action_qvals, batch["state"][:, :-1])
 
             # (次状態の最大Q値)
-            # 入力 : 全エージェントの次状態における最大のQ値 & グローバル状態
+            # 入力 : 全エージェントの次状態における最大のQ値 & グローバルな次状態
             target_max_qvals = self.target_mixer(
                 target_max_qvals, batch["state"][:, 1:])
 

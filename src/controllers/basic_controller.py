@@ -1,3 +1,4 @@
+from __future__ import annotations
 from modules.agents.rnn_agent import RNNAgent
 from components.action_selectors import EpsilonGreedyActionSelector
 import torch as th
@@ -85,7 +86,7 @@ class BasicMAC:
     def parameters(self):
         return self.agent.parameters()
 
-    def load_state(self, other_mac):
+    def load_state(self, other_mac: BasicMAC):
         self.agent.load_state_dict(other_mac.agent.state_dict())
 
     def cuda(self):
