@@ -5,6 +5,7 @@ import numpy as np
 from controllers.basic_controller import BasicMAC
 
 from smac.env import StarCraft2Env
+from envs.checkers import Checkers
 from utils.logging import Logger
 
 
@@ -40,11 +41,13 @@ class EpisodeRunner:
 
     def setup(self, scheme, groups, preprocess, mac: BasicMAC):
         """
-        RunnerにMACを設定する
+        MACを設定 & EpisodeBatchの設定
         """
         # EpisodeBatchの引数を固定したものをここで作っておく（初期化のたびに再利用するため）
         self.new_batch = partial(EpisodeBatch, scheme, groups, self.batch_size, self.episode_limit + 1,
                                  preprocess=preprocess, device=self.args.device)
+
+        # 渡されたMACを保持
         self.mac = mac
 
     def get_env_info(self):
@@ -61,7 +64,7 @@ class EpisodeRunner:
 
     def reset(self):
         """
-        環境など諸々を初期化
+        エピソードの最初に環境など諸々を初期化
         """
         # 新しいバッチを用意
         self.batch = self.new_batch()
@@ -78,8 +81,8 @@ class EpisodeRunner:
         # 環境を初期化
         self.reset()
 
-        terminated = False
-        episode_return = 0
+        terminated = False  # a
+        episode_return = 0  # エピソードで得られた報酬の総和
 
         # 隠れ状態を初期化
         self.mac.init_hidden(batch_size=self.batch_size)

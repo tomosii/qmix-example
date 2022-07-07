@@ -72,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument("--algo", default="qmix",
                         help="The algorithm to train the agent")
     # 環境設定用
-    parser.add_argument("--env", default="sc2",
+    parser.add_argument("--env", default="checkers",
                         help="Which environment settings to load")
     # 引数を解析して取得
     args = parser.parse_args()

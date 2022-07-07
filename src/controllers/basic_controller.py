@@ -10,6 +10,8 @@ class BasicMAC:
     エージェント間でパラメータを共有するマルチエージェントコントローラー
 
     全エージェントで1つのニューラルネットワークを共有する
+
+    Agent Network (`RNNAgent`) の入出力を制御
     """
 
     def __init__(self, scheme, groups, args):
