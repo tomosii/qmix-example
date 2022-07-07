@@ -208,7 +208,7 @@ class EpisodeRunner:
         self.logger.log_stat(prefix + "return_std",
                              np.std(total_reward_history), self.t_env)
 
-        wandb.log({"total_reward": total_reward_mean}, step=self.t_env)
+        wandb.log({prefix + "total_reward": total_reward_mean}, step=self.t_env)
 
         # 総収益の履歴をクリア
         total_reward_history.clear()
@@ -219,7 +219,7 @@ class EpisodeRunner:
                 stat = value / sum_stats["n_episodes"]
                 self.logger.log_stat(prefix + key + "_mean",
                                      stat, self.t_env)
-                wandb.log({key: stat}, step=self.t_env)
+                wandb.log({prefix + key: stat}, step=self.t_env)
 
         # env_infoの履歴をクリア
         sum_stats.clear()

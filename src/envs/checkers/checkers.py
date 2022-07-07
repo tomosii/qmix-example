@@ -98,7 +98,7 @@ class Checkers(gym.Env):
         """
         行動を環境に出力してタイムステップを1つ進める
 
-        -> [ 報酬, 終了フラグ, 追加情報(残り個数) ]
+        -> [ 報酬, 終了フラグ, 追加情報(残り個数など) ]
         """
         # 人数分の行動が入力されているかチェック
         assert len(agents_action) == self.n_agents
@@ -110,8 +110,11 @@ class Checkers(gym.Env):
 
         # 時間経過によるマイナスの報酬
         rewards = [0 for _ in range(self.n_agents)]
+        # 各エージェントが得た報酬の総和
+        personal_total_rewards = {}
 
         # エージェントごと
+
         for agent_i, action in enumerate(agents_action):
             # 行動をとって位置を移動
             self.__update_agent_pos(agent_i, action)
@@ -129,11 +132,18 @@ class Checkers(gym.Env):
                 # エージェントの移動をグリッドに反映
                 self.__update_agent_view(agent_i)
 
+            # 報酬の総和を更新
+            self._total_episode_reward[agent_i] += rewards[agent_i]
+            personal_total_rewards.update({
+                "agent{}_total_score".format(agent_i + 1): self._total_episode_reward[agent_i]
+            })
+
         terminated = False
         reward = sum(rewards) + self._step_cost
         info = {
             'apples_left': self._food_count["apple"],
             'lemons_left': self._food_count["lemon"],
+            **personal_total_rewards  # 結合
         }
 
         # 終了時
@@ -146,10 +156,6 @@ class Checkers(gym.Env):
             terminated = True
             info["timeout"] = True
             self.timeouts += 1
-
-        # 報酬の総和を更新
-        for i in range(self.n_agents):
-            self._total_episode_reward[i] += rewards[i]
 
         # 終了したにも関わらずstep()を呼ばれた際のエラー用
         if self.steps_beyond_done is None and terminated:
