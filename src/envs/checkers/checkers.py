@@ -26,14 +26,17 @@ class Checkers(gym.Env):
     """
     metadata = {'render.modes': ['human', 'rgb_array']}
 
-    def __init__(self, full_observable=False, step_cost=-0.01, max_steps=100, clock=False):
+    def __init__(self, full_observable=False, step_cost=-0.01, max_steps=100, clock=False, debug=False, seed=None):
         self._grid_shape = (3, 8)
         self.n_agents = 2
+        self.n_actions = len(ACTION_MEANING)
         self._max_steps = max_steps
         self._step_count = None
         self._step_cost = step_cost
         self.full_observable = full_observable
         self._add_clock = clock
+        self.debug = debug
+        self.episode_limit = max_steps
 
         self.action_space = MultiAgentActionSpace(
             [spaces.Discrete(5) for _ in range(self.n_agents)])
@@ -69,7 +72,7 @@ class Checkers(gym.Env):
             "state_shape": self.get_state_size(),
             "obs_shape": self.get_obs_size(),
             "n_actions": self.get_total_actions(),
-            "n_agents": self._max_steps,
+            "n_agents": 2,
             "episode_limit": 100,
         }
         # env_info["agent_features"] = self.ally_state_attr_names
@@ -123,6 +126,16 @@ class Checkers(gym.Env):
         else:
             return [[ACTION_MEANING[i] for i in range(ac.n)] for ac in self.action_space]
 
+    def get_avail_actions(self):
+        """
+        全エージェントの選択可能な行動をリストで返す
+        """
+        avail_actions = []
+        for agent_i in range(self.n_agents):
+            avail_agent = [1] * self.n_actions
+            avail_actions.append(avail_agent)
+        return avail_actions
+
     def __draw_base_img(self):
         self._base_img = draw_grid(
             self._grid_shape[0], self._grid_shape[1], cell_size=CELL_SIZE, fill='white')
@@ -159,7 +172,11 @@ class Checkers(gym.Env):
             self.__update_agent_view(agent_i)
         self.__draw_base_img()
 
-    def get_agent_obs(self):
+    def get_obs(self):
+        """
+        全てのエージェントの観測を1つのリストで返す
+        NOTE: 分散実行時はエージェントは自分自身の観測のみ用いるようにする
+        """
         _obs = []
         for agent_i in range(self.n_agents):
             pos = self.agent_pos[agent_i]
@@ -192,10 +209,61 @@ class Checkers(gym.Env):
                 _agent_i_obs += [self._step_count / self._max_steps]
             _obs.append(_agent_i_obs)
 
+            if self.debug:
+                logging.debug("Obs Agent: {}".format(agent_i).center(60, "-"))
+                # logging.debug(
+                #     "Avail. actions {}".format(
+                #         self.get_avail_agent_actions(agent_id)
+                #     )
+                # )
+                # logging.debug("Move feats {}".format(move_feats))
+                # logging.debug("Enemy feats {}".format(enemy_feats))
+                # logging.debug("Ally feats {}".format(ally_feats))
+                # logging.debug("Own feats {}".format(own_feats))
+                logging.debug(_obs)
+
         if self.full_observable:
             _obs = np.array(_obs).flatten().tolist()
             _obs = [_obs for _ in range(self.n_agents)]
         return _obs
+
+    def get_state(self):
+        """
+        グローバル状態を返す
+        NOTE: この関数は分散実行時は用いないこと
+        """
+        # 各エージェントの観測を結合したものをグローバル状態とする
+        obs_concat = np.concatenate(self.get_obs(), axis=0).astype(
+            np.float32
+        )
+        return obs_concat
+
+        # if self.obs_instead_of_state:
+        #     obs_concat = np.concatenate(self.get_obs(), axis=0).astype(
+        #         np.float32
+        #     )
+        #     return obs_concat
+
+        # state_dict = self.get_state_dict()
+
+        # state = np.append(
+        #     state_dict["allies"].flatten(), state_dict["enemies"].flatten()
+        # )
+        # if "last_action" in state_dict:
+        #     state = np.append(state, state_dict["last_action"].flatten())
+        # if "timestep" in state_dict:
+        #     state = np.append(state, state_dict["timestep"])
+
+        # state = state.astype(dtype=np.float32)
+
+        # if self.debug:
+        #     logging.debug("STATE".center(60, "-"))
+        #     logging.debug("Ally state {}".format(state_dict["allies"]))
+        #     logging.debug("Enemy state {}".format(state_dict["enemies"]))
+        #     if self.state_last_action:
+        #         logging.debug("Last actions {}".format(self.last_action))
+
+        # return state
 
     def reset(self):
         self.__init_full_obs()
@@ -206,7 +274,7 @@ class Checkers(gym.Env):
         self._agent_dones = [False for _ in range(self.n_agents)]
         self.steps_beyond_done = None
 
-        return self.get_agent_obs()
+        return self.get_obs(), self.get_state()
 
     def is_valid(self, pos):
         return (0 <= pos[0] < self._grid_shape[0]) and (0 <= pos[1] < self._grid_shape[1])
@@ -279,7 +347,8 @@ class Checkers(gym.Env):
             self.steps_beyond_done += 1
             rewards = [0 for _ in range(self.n_agents)]
 
-        return self.get_agent_obs(), rewards, self._agent_dones, {'food_count': self._food_count}
+        # return self.get_agent_obs(), rewards, self._agent_dones, {'food_count': self._food_count}
+        return rewards, self._agent_dones, {'food_count': self._food_count}
 
     def render(self, mode='human'):
         for agent_i in range(self.n_agents):

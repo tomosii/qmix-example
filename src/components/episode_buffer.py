@@ -1,12 +1,15 @@
+from typing import List
 import torch as th
 import numpy as np
 from types import SimpleNamespace as SN
 
+from components.transforms import Transform
+
 
 class EpisodeBatch:
     def __init__(self,
-                 scheme,
-                 groups,
+                 scheme: dict,
+                 groups: dict,
                  batch_size,
                  max_seq_length,
                  data=None,
@@ -29,15 +32,26 @@ class EpisodeBatch:
             self._setup_data(self.scheme, self.groups,
                              batch_size, max_seq_length, self.preprocess)
 
-    def _setup_data(self, scheme, groups, batch_size, max_seq_length, preprocess):
+    def _setup_data(self, scheme: dict, groups: dict, batch_size, max_seq_length, preprocess: dict):
+        """
+        それぞれのデータのShapeを計算し、事前にバッチに最大ステップ数分の空のテンソルを作っておく
+        """
         if preprocess is not None:
+            # preprocess には　actions_onehot の情報が入っている
+            # preprocess = {
+            #     "actions": ("actions_onehot", [OneHot(out_dim=args.n_actions)])
+            # }
             for k in preprocess:
                 assert k in scheme
+                # "actions_onehot"
                 new_k = preprocess[k][0]
-                transforms = preprocess[k][1]
+
+                # [OneHot(out_dim=args.n_actions)]
+                transforms: List[Transform] = preprocess[k][1]
 
                 vshape = self.scheme[k]["vshape"]
                 dtype = self.scheme[k]["dtype"]
+
                 for transform in transforms:
                     vshape, dtype = transform.infer_output_info(vshape, dtype)
 
@@ -55,18 +69,23 @@ class EpisodeBatch:
             "filled": {"vshape": (1,), "dtype": th.long},
         })
 
+        # "group"で指定されているエージェントごとに存在するデータ（行動、観測など）は
+        # schemeで指定されているShape × エージェント数 になる
         for field_key, field_info in scheme.items():
             assert "vshape" in field_info, "Scheme must define vshape for {}".format(
                 field_key)
             vshape = field_info["vshape"]
+            print(field_key, vshape)
             episode_const = field_info.get("episode_const", False)
             group = field_info.get("group", None)
             dtype = field_info.get("dtype", th.float32)
 
             if isinstance(vshape, int):
+                # シェイプをタプルの形に直す
                 vshape = (vshape,)
 
             if group:
+                # エージェントごとの次元を追加
                 assert group in groups, "Group {} must have its number of members defined in _groups_".format(
                     group)
                 shape = (groups[group], *vshape)
@@ -77,8 +96,11 @@ class EpisodeBatch:
                 self.data.episode_data[field_key] = th.zeros(
                     (batch_size, *shape), dtype=dtype, device=self.device)
             else:
+                # ゼロ埋めのテンソルを生成
                 self.data.transition_data[field_key] = th.zeros(
                     (batch_size, max_seq_length, *shape), dtype=dtype, device=self.device)
+                print("{}のひな形を追加 shape: {}".format(
+                    field_key, self.data.transition_data[field_key].shape))
 
     def extend(self, scheme, groups=None):
         self._setup_data(scheme, self.groups if groups is None else groups,
@@ -94,14 +116,25 @@ class EpisodeBatch:
     def update(self, data: dict, bs=slice(None), ts=slice(None), mark_filled=True):
         """
         バッチにデータを追加
-        data: 追加するデータ
+        data: 追加する辞書型データ
         ts: タイムステップ
-        bs: 
+        bs:
         """
+        # print("バッチをアップデート:")
+        # pprint(data)
+
         slices = self._parse_slices((bs, ts))
+
+        # print("self.data: ")
+        # pprint(vars(self.data))
+
+        # 辞書データの各項目
         for k, v in data.items():
+            # データの項目が指定のものかを確認
+            print(k)
             if k in self.data.transition_data:
                 target = self.data.transition_data
+
                 if mark_filled:
                     target["filled"][slices] = 1
                     mark_filled = False
@@ -115,17 +148,29 @@ class EpisodeBatch:
 
             dtype = self.scheme[k].get("dtype", th.float32)
             v = th.tensor(v, dtype=dtype, device=self.device)
+
+            # データのシェイプを確認
             self._check_safe_view(v, target[k][_slices])
+
+            # 形を変形してあてはめる（= バッチに保存）
             target[k][_slices] = v.view_as(target[k][_slices])
 
+            # One-Hot用
             if k in self.preprocess:
                 new_k = self.preprocess[k][0]
                 v = target[k][_slices]
                 for transform in self.preprocess[k][1]:
+                    transform: Transform
+                    # 行動などをOne-Hotベクトルに変換
                     v = transform.transform(v)
+                # 形を変形してあてはめる（= バッチに保存）
                 target[new_k][_slices] = v.view_as(target[new_k][_slices])
 
     def _check_safe_view(self, v, dest):
+        """
+        バッチに追加するデータの形が正常かどうかをチェック
+        """
+        print("Rreshape of {} to {}".format(v.shape, dest.shape))
         idx = len(v.shape) - 1
         for s in dest.shape[::-1]:
             if v.shape[idx] != s:
@@ -134,6 +179,7 @@ class EpisodeBatch:
                         "Unsafe reshape of {} to {}".format(v.shape, dest.shape))
             else:
                 idx -= 1
+        print("NO PROBLEM")
 
     def __getitem__(self, item):
         if isinstance(item, str):
@@ -192,10 +238,10 @@ class EpisodeBatch:
         parsed = []
         # Only batch slice given, add full time slice
         if (isinstance(items, slice)  # slice a:b
-                or isinstance(items, int)  # int i
-                # [a,b,c]
-                or (isinstance(items, (list, np.ndarray, th.LongTensor, th.cuda.LongTensor)))
-            ):
+                    or isinstance(items, int)  # int i
+                    # [a,b,c]
+                    or (isinstance(items, (list, np.ndarray, th.LongTensor, th.cuda.LongTensor)))
+                ):
             items = (items, slice(None))
 
         # Need the time indexing to be contiguous
@@ -225,6 +271,7 @@ class EpisodeBatch:
 class ReplayBuffer(EpisodeBatch):
     """
     経験再生用バッファ（エピソードを蓄積しておくメモリ）
+    複数のEpisodeBatchを格納する、巨大な1つのEpisodeBatch
     """
 
     def __init__(self, scheme, groups, buffer_size, max_seq_length, preprocess=None, device="cpu"):

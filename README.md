@@ -14,7 +14,27 @@
 
 ## 参考
 
-論文の著者が実装したレポジトリ [pymarl](https://github.com/oxwhirl/pymarl)
+論文の著者が実装したレポジトリ [oxwhirl / **pymarl**](https://github.com/oxwhirl/pymarl)
+
+OpenAI Gym 形式のマルチエージェント環境 [koulanurag / **ma-gym**](https://github.com/koulanurag/ma-gym)
+
+## 使い方
+
+`python3 src/main.py --algo qmix --env checkers`
+
+`--algo`: 使用するアルゴリズムを指定
+
+`--env`: 使用する環境を指定
+
+### ハイパーパラメータ
+
+config フォルダの YAML ファイル で管理
+
+ベースは default.yaml
+
+アルゴリズム特有のものは config/algorithms
+
+環境特有のものは config/environments
 
 ## 全体の構造＆流れ
 

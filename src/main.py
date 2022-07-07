@@ -17,7 +17,7 @@ from run import run
 
 # set to "no" if you want to see stdout/stderr in console
 # Sacredの標準出力設定 "sys"(Windows), "fd"(Linux), "no"
-SETTINGS["CAPTURE_MODE"] = "sys"
+SETTINGS["CAPTURE_MODE"] = "no"
 
 logger = get_logger()
 
@@ -59,7 +59,7 @@ def _get_config_from_yaml(file_name, subfolder):
 if __name__ == "__main__":
     # Get the defaults from default.yaml
     # default.yamlからデフォルトのパラメータを読み込む
-    with open(os.path.join(os.path.dirname(__file__), "config", "default.yaml"), "r") as f:
+    with open(os.path.join(os.path.dirname(__file__), "config", "default.yaml"), "r", encoding="utf-8") as f:
         try:
             config_dict = yaml.safe_load(f)
         except yaml.YAMLError as exc:
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     # 最初に読み込んだdefaultにアルゴリズムと環境設定のパラメーターを結合
     config_dict = {**config_dict, **env_config, **algo_config}
 
-    print(yaml.dump(config_dict))
+    # print(yaml.dump(config_dict))
 
     # now add all the config to sacred
     # Scaredにパラメータを設定

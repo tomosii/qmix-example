@@ -4,7 +4,7 @@ from components.episode_buffer import EpisodeBatch
 import numpy as np
 from controllers.basic_controller import BasicMAC
 
-from smac.env import StarCraft2Env
+# from smac.env import StarCraft2Env
 from envs.checkers import Checkers
 from utils.logging import Logger
 
@@ -21,7 +21,7 @@ class EpisodeRunner:
         assert self.batch_size == 1
 
         # 環境
-        self.env = StarCraft2Env(**self.args.env_args)
+        self.env = Checkers(**self.args.env_args)
 
         # 最大タイムステップ数
         self.episode_limit = self.env.episode_limit
@@ -106,12 +106,12 @@ class EpisodeRunner:
 
             # Pass the entire batch of experiences up till now to the agents
             # Receive the actions for each agent at this timestep in a batch of size 1
-            # 現時点のバッチ（エピソードの最初から今までの遷移情報が含まれている）を渡して、行動を決定
+            # 現時点のバッチ（エピソードの最初から今までの遷移情報が含まれている）を渡して、Agent Networkから行動を決定
             actions = self.mac.select_actions(
                 self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
 
             # 行動を出力して、環境からフィードバックを得る
-            # 報酬，エピソードが終了したか，環境情報
+            # 返り値 = 報酬，エピソードが終了したか，環境情報
             reward, terminated, env_info = self.env.step(actions[0])
 
             # このエピソードの総収益
@@ -149,7 +149,7 @@ class EpisodeRunner:
         self.batch.update(last_data, ts=self.t)
 
         # Select actions in the last stored state
-        # 終端状態における行動を決定（？）
+        # 終端状態における行動をAgent Networkから決定（？）
         actions = self.mac.select_actions(
             self.batch, t_ep=self.t, t_env=self.t_env, test_mode=test_mode)
         # バッチに最後の行動を追加

@@ -104,12 +104,19 @@ def run_sequential(args, logger: Logger):
         "reward": {"vshape": (1,)},
         "terminated": {"vshape": (1,), "dtype": th.uint8},
     }
+    # groups: エージェント数分存在する情報（観測、行動）を管理するためのもの
     groups = {
         "agents": args.n_agents
     }
+    # EpisodeBatchの初期化に使われる
+    # OneHotベクトルで表す数を設定
     preprocess = {
         "actions": ("actions_onehot", [OneHot(out_dim=args.n_actions)])
     }
+
+    pprint.pprint("scheme: {}".format(scheme))
+    pprint.pprint("groups: {}".format(groups))
+    pprint.pprint("preprocess: {}".format(preprocess))
 
     # 経験再生用バッファ
     buffer = ReplayBuffer(scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
