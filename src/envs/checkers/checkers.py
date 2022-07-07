@@ -3,12 +3,12 @@ import logging
 
 import gym
 import numpy as np
-from gym import spaces
+# from gym import spaces
 from gym.utils import seeding
 
-from ..utils.action_space import MultiAgentActionSpace
+# from ..utils.action_space import MultiAgentActionSpace
 from ..utils.draw import draw_grid, fill_cell, draw_circle, write_cell_text
-from ..utils.observation_space import MultiAgentObservationSpace
+# from ..utils.observation_space import MultiAgentObservationSpace
 
 logger = logging.getLogger(__name__)
 
@@ -132,8 +132,8 @@ class Checkers(gym.Env):
         terminated = False
         reward = sum(rewards) + self._step_cost
         info = {
-            'apple_count': self._food_count["apple"],
-            'lemon_count': self._food_count["lemon"],
+            'apples_left': self._food_count["apple"],
+            'lemons_left': self._food_count["lemon"],
         }
 
         # 終了時
@@ -144,7 +144,7 @@ class Checkers(gym.Env):
             #     self._agent_dones[i] = True
         elif self._step_count >= self._max_steps:  # 最大ステップ数を超えた
             terminated = True
-            info["episode_limit"] = True
+            info["timeout"] = True
             self.timeouts += 1
 
         # 報酬の総和を更新

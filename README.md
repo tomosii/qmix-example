@@ -20,11 +20,13 @@ OpenAI Gym 形式のマルチエージェント環境 [koulanurag / **ma-gym**](
 
 ## 使い方
 
-`python3 src/main.py --algo qmix --env checkers`
+`python3 src/main.py --algo qmix --env checkers --wandb`
 
 `--algo`: 使用するアルゴリズムを指定
 
 `--env`: 使用する環境を指定
+
+`--wandb`: Weights & Biases を用いる
 
 ### ハイパーパラメータ
 

@@ -1,6 +1,7 @@
 tb_logs/
 results/
 /wandb
+/recordings
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

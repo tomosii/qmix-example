@@ -1,5 +1,7 @@
 # from envs import REGISTRY as env_REGISTRY
 from functools import partial
+
+import wandb
 from components.episode_buffer import EpisodeBatch
 import numpy as np
 from controllers.basic_controller import BasicMAC
@@ -82,7 +84,7 @@ class EpisodeRunner:
         self.reset()
 
         terminated = False  # a
-        episode_return = 0  # エピソードで得られた報酬の総和
+        total_reward = 0  # エピソードで得られた報酬の総和
 
         # 隠れ状態を初期化
         self.mac.init_hidden(batch_size=self.batch_size)
@@ -115,7 +117,7 @@ class EpisodeRunner:
             reward, terminated, env_info = self.env.step(actions[0])
 
             # このエピソードの総収益
-            episode_return += reward
+            total_reward += reward
 
             # 遷移後の情報
             post_transition_data = {
@@ -124,7 +126,7 @@ class EpisodeRunner:
                 # 獲得した報酬
                 "reward": [(reward,)],
                 # エピソード終了の原因が目的達成による時のみTrue（最大回数を超えて終了した場合はFalse）
-                "terminated": [(terminated != env_info.get("episode_limit", False),)],
+                "terminated": [(terminated != env_info.get("timeout", False),)],
             }
 
             # 遷移後の情報もバッチに追加
@@ -157,56 +159,67 @@ class EpisodeRunner:
 
         # ------ ログをまとめる ------
         # 使われていないので空？
-        cur_stats = self.test_stats if test_mode else self.train_stats
-        cur_returns = self.test_returns if test_mode else self.train_returns
+        sum_stats = self.test_stats if test_mode else self.train_stats
+        total_reward_history = self.test_returns if test_mode else self.train_returns
+
         # ファイル名用
         log_prefix = "test_" if test_mode else ""
 
-        # cur_statsにはenv_infoがコピーされる
-        cur_stats.update({k: cur_stats.get(k, 0) + env_info.get(k, 0)
-                          for k in set(cur_stats) | set(env_info)})
+        # sum_statsにenv_infoの値を加算していく
+        sum_stats.update({k: sum_stats.get(k, 0) + env_info.get(k, 0)
+                          for k in set(sum_stats) | set(env_info)})
 
-        cur_stats["n_episodes"] = 1 + cur_stats.get("n_episodes", 0)
-        cur_stats["ep_length"] = self.t + cur_stats.get("ep_length", 0)
+        # 何エピソード分の和かわかるようにn_episodesを加算していく
+        sum_stats["n_episodes"] = 1 + sum_stats.get("n_episodes", 0)
+        sum_stats["episode_length"] = self.t + \
+            sum_stats.get("episode_length", 0)
 
         # 累計タイムステップを蓄積（テスト時以外）
         if not test_mode:
             self.t_env += self.t
 
-        # エピソード総収益の履歴
-        cur_returns.append(episode_return)
+        # エピソード総収益の履歴を更新
+        total_reward_history.append(total_reward)
 
         if test_mode and (len(self.test_returns) == self.args.test_nepisode):
             # テストの際
-            self._log(cur_returns, cur_stats, log_prefix)
+            self._log(total_reward_history, sum_stats, log_prefix)
         elif self.t_env - self.log_train_stats_t >= self.args.runner_log_interval:
-            # 時々epsilonのログをとる
-            self._log(cur_returns, cur_stats, log_prefix)
+            # 定期的にログをとる
+            self._log(total_reward_history, sum_stats, log_prefix)
             if hasattr(self.mac.action_selector, "epsilon"):
                 self.logger.log_stat(
                     "epsilon", self.mac.action_selector.epsilon, self.t_env)
+                wandb.log(
+                    {"epsilon": self.mac.action_selector.epsilon}, step=self.t_env)
             self.log_train_stats_t = self.t_env
 
         # バッチを返す
         return self.batch
 
-    def _log(self, returns: list, stats: dict, prefix):
+    def _log(self, total_reward_history: list, sum_stats: dict, prefix):
         """
-        前回記録時から今までの総収益の平均・分散を記録
+        前回記録時からエピソードごとの報酬総和の平均・分散を記録
         """
-        # 総収益の平均・分散
-        self.logger.log_stat(prefix + "return_mean",
-                             np.mean(returns), self.t_env)
+        # 報酬の総和の平均・分散
+        total_reward_mean = np.mean(total_reward_history)
+        self.logger.log_stat(prefix + "total_reward",
+                             total_reward_mean, self.t_env)
         self.logger.log_stat(prefix + "return_std",
-                             np.std(returns), self.t_env)
-        # 総収益の履歴をクリア
-        returns.clear()
+                             np.std(total_reward_history), self.t_env)
 
-        # env_infoに含まれるデータの平均
-        for k, v in stats.items():
-            if k != "n_episodes":
-                self.logger.log_stat(prefix + k + "_mean",
-                                     v / stats["n_episodes"], self.t_env)
+        wandb.log({"total_reward": total_reward_mean}, step=self.t_env)
+
+        # 総収益の履歴をクリア
+        total_reward_history.clear()
+
+        # env_infoの値の総和を記録したエピソード数で割る
+        for key, value in sum_stats.items():
+            if key != "n_episodes":
+                stat = value / sum_stats["n_episodes"]
+                self.logger.log_stat(prefix + key + "_mean",
+                                     stat, self.t_env)
+                wandb.log({key: stat}, step=self.t_env)
 
         # env_infoの履歴をクリア
-        stats.clear()
+        sum_stats.clear()

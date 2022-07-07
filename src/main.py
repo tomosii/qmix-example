@@ -83,6 +83,10 @@ if __name__ == "__main__":
     # 環境設定用
     parser.add_argument("--env", default="checkers",
                         help="Which environment settings to load")
+
+    # WandBを使用する際は"--wandb"をつけて実行
+    parser.add_argument("--wandb", action="store_true")
+
     # 引数を解析して取得
     args = parser.parse_args()
 
@@ -110,6 +114,7 @@ if __name__ == "__main__":
     wandb.init(
         project=WANDB_PROJECT,
         entity=WANDB_ENTITY,
+        mode="online" if args.wandb else "disabled"
     )
     # パラメータを設定
     wandb.config.update(config_dict)
