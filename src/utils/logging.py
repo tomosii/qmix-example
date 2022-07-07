@@ -1,12 +1,12 @@
 from collections import defaultdict
-import logging as lg
+import logging
 import numpy as np
 import torch
 
 
 class Logger:
     def __init__(self, console_logger):
-        self.console_logger: lg.Logger = console_logger
+        self.console_logger: logging.Logger = console_logger
 
         self.use_tb = False
         self.use_sacred = False
@@ -59,13 +59,29 @@ class Logger:
 
 # set up a custom logger
 def get_logger():
-    logger = lg.getLogger()
-    logger.handlers = []
-    ch = lg.StreamHandler()
-    formatter = lg.Formatter(
+    """
+    Loggerの初期設定
+    """
+    logger = logging.getLogger()
+    formatter = logging.Formatter(
         '[%(levelname)s %(asctime)s] %(name)s %(message)s', '%H:%M:%S')
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-    logger.setLevel('DEBUG')
+    logger.setLevel(logging.DEBUG)
+
+    # コンソール出力用
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    # コンソールにはINFOレベル以上のみ出力する
+    stream_handler.setLevel(logging.INFO)
+
+    # ファイル出力用
+    logFilePath = "results/run.log"
+    # w+にしないと上書きされない
+    file_handler = logging.FileHandler(filename=logFilePath, mode="w+")
+    file_handler.setFormatter(formatter)
+    # ファイルにはすべて残す
+    file_handler.setLevel(logging.DEBUG)
+
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
 
     return logger

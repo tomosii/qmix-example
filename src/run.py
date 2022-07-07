@@ -1,7 +1,6 @@
 import datetime
 import os
 import pprint
-import sys
 import time
 import threading
 import torch as th

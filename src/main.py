@@ -6,6 +6,7 @@ import os
 from os.path import dirname, abspath
 from copy import deepcopy
 from sacred import Experiment, SETTINGS
+from sacred.run import Run
 from sacred.observers import FileStorageObserver
 from sacred.utils import apply_backspaces_and_linefeeds
 import torch as th
@@ -30,7 +31,7 @@ results_path = os.path.join(dirname(dirname(abspath(__file__))), "results")
 
 
 @ex.main
-def my_main(_run, _config, _log):
+def my_main(_run: Run, _config, _log):
     """
     Sacredで実験を実行すると最初に呼び出される
     """
@@ -42,6 +43,9 @@ def my_main(_run, _config, _log):
 
     # run the framework
     run(_run, config, _log)
+
+    # ログファイルを記録
+    _run.add_artifact(os.path.join(results_path, "run.log"))
 
 
 def _get_config_from_yaml(file_name, subfolder):
