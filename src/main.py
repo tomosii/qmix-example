@@ -2,13 +2,13 @@
 
 import numpy as np
 import os
-# import collections
 from os.path import dirname, abspath
 from copy import deepcopy
 from sacred import Experiment, SETTINGS
 from sacred.run import Run
 from sacred.observers import FileStorageObserver
 from sacred.utils import apply_backspaces_and_linefeeds
+import wandb
 import torch as th
 from utils.logging import get_logger
 import yaml
@@ -19,6 +19,9 @@ from run import run
 # set to "no" if you want to see stdout/stderr in console
 # Sacredの標準出力設定 "sys"(Windows), "fd"(Linux), "no"
 SETTINGS["CAPTURE_MODE"] = "no"
+
+WANDB_PROJECT = "qmix-example"
+WANDB_ENTITY = "lighthouse117"
 
 logger = get_logger()
 
@@ -45,7 +48,9 @@ def my_main(_run: Run, _config, _log):
     run(_run, config, _log)
 
     # ログファイルを記録
-    _run.add_artifact(os.path.join(results_path, "run.log"))
+    _run.add_artifact(os.path.join(results_path, "run_full.log"))  # Scared
+    # wandb.save(os.path.join(results_path, "run_full.log"),
+    #            policy="end")  # WandB
 
 
 def _get_config_from_yaml(file_name, subfolder):
@@ -100,5 +105,19 @@ if __name__ == "__main__":
     file_obs_path = os.path.join(results_path, "sacred")
     ex.observers.append(FileStorageObserver.create(file_obs_path))
 
-    # 実験を実行
+    # ======= WandB用 =======
+    # 初期化
+    wandb.init(
+        project=WANDB_PROJECT,
+        entity=WANDB_ENTITY,
+    )
+    # パラメータを設定
+    wandb.config.update(config_dict)
+
+    # SacredにWandBのIDを記録
+    ex.add_config({
+        "wandb_id": wandb.run.id
+    })
+
+    # Sacredの実験を実行
     ex.run()

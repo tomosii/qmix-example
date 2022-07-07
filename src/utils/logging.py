@@ -74,7 +74,7 @@ def get_logger():
     stream_handler.setLevel(logging.INFO)
 
     # ファイル出力用
-    logFilePath = "results/run.log"
+    logFilePath = "results/run_full.log"
     # w+にしないと上書きされない
     file_handler = logging.FileHandler(filename=logFilePath, mode="w+")
     file_handler.setFormatter(formatter)

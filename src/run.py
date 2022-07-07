@@ -6,6 +6,8 @@ import threading
 import torch as th
 import logging as lg
 from types import SimpleNamespace
+
+import wandb
 from utils.logging import Logger
 from utils.timehelper import time_left, time_str
 from os.path import dirname, abspath
@@ -241,6 +243,7 @@ def run_sequential(args, logger: Logger):
 
         if (runner.t_env - last_log_T) >= args.log_interval:
             logger.log_stat("episode", episode, runner.t_env)
+            wandb.log({"episode": episode})
             logger.print_recent_stats()
             last_log_T = runner.t_env
 
