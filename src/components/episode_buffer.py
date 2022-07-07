@@ -75,7 +75,7 @@ class EpisodeBatch:
             assert "vshape" in field_info, "Scheme must define vshape for {}".format(
                 field_key)
             vshape = field_info["vshape"]
-            print(field_key, vshape)
+            # print(field_key, vshape)
             episode_const = field_info.get("episode_const", False)
             group = field_info.get("group", None)
             dtype = field_info.get("dtype", th.float32)
@@ -99,8 +99,8 @@ class EpisodeBatch:
                 # ゼロ埋めのテンソルを生成
                 self.data.transition_data[field_key] = th.zeros(
                     (batch_size, max_seq_length, *shape), dtype=dtype, device=self.device)
-                print("{}のひな形を追加 shape: {}".format(
-                    field_key, self.data.transition_data[field_key].shape))
+                # print("{}のひな形を追加 shape: {}".format(
+                #     field_key, self.data.transition_data[field_key].shape))
 
     def extend(self, scheme, groups=None):
         self._setup_data(scheme, self.groups if groups is None else groups,
@@ -131,7 +131,7 @@ class EpisodeBatch:
         # 辞書データの各項目
         for k, v in data.items():
             # データの項目が指定のものかを確認
-            print(k)
+            # print(k)
             if k in self.data.transition_data:
                 target = self.data.transition_data
 
@@ -147,7 +147,8 @@ class EpisodeBatch:
                     "{} not found in transition or episode data".format(k))
 
             dtype = self.scheme[k].get("dtype", th.float32)
-            v = th.tensor(v, dtype=dtype, device=self.device)
+            if not isinstance(v, th.Tensor):
+                v = th.tensor(v, dtype=dtype, device=self.device)
 
             # データのシェイプを確認
             self._check_safe_view(v, target[k][_slices])
@@ -170,7 +171,7 @@ class EpisodeBatch:
         """
         バッチに追加するデータの形が正常かどうかをチェック
         """
-        print("Rreshape of {} to {}".format(v.shape, dest.shape))
+        # print("Rreshape of {} to {}".format(v.shape, dest.shape))
         idx = len(v.shape) - 1
         for s in dest.shape[::-1]:
             if v.shape[idx] != s:
@@ -179,7 +180,7 @@ class EpisodeBatch:
                         "Unsafe reshape of {} to {}".format(v.shape, dest.shape))
             else:
                 idx -= 1
-        print("NO PROBLEM")
+        # print("NO PROBLEM")
 
     def __getitem__(self, item):
         if isinstance(item, str):

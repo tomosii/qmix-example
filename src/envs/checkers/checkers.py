@@ -37,16 +37,18 @@ class Checkers(gym.Env):
         self._add_clock = clock
         self.debug = debug
         self.episode_limit = max_steps
+        self._episode_count = 0
+        self.timeouts = 0
 
-        self.action_space = MultiAgentActionSpace(
-            [spaces.Discrete(5) for _ in range(self.n_agents)])
-        self._obs_high = np.ones(2 + (3 * 3 * 5) + (1 if clock else 0))
-        self._obs_low = np.zeros(2 + (3 * 3 * 5) + (1 if clock else 0))
-        if self.full_observable:
-            self._obs_high = np.tile(self._obs_high, self.n_agents)
-            self._obs_low = np.tile(self._obs_low, self.n_agents)
-        self.observation_space = MultiAgentObservationSpace([spaces.Box(self._obs_low, self._obs_high)
-                                                             for _ in range(self.n_agents)])
+        # self.action_space = MultiAgentActionSpace(
+        #     [spaces.Discrete(5) for _ in range(self.n_agents)])
+        # self._obs_high = np.ones(2 + (3 * 3 * 5) + (1 if clock else 0))
+        # self._obs_low = np.zeros(2 + (3 * 3 * 5) + (1 if clock else 0))
+        # if self.full_observable:
+        #     self._obs_high = np.tile(self._obs_high, self.n_agents)
+        #     self._obs_low = np.tile(self._obs_low, self.n_agents)
+        # self.observation_space = MultiAgentObservationSpace([spaces.Box(self._obs_low, self._obs_high)
+        #                                                      for _ in range(self.n_agents)])
 
         self.init_agent_pos = {
             0: [0, self._grid_shape[1] - 2], 1: [2, self._grid_shape[1] - 2]}
@@ -62,6 +64,114 @@ class Checkers(gym.Env):
         self._total_episode_reward = None
         self.steps_beyond_done = None
         self.seed()
+
+    def reset(self):
+        """
+        環境を初期化
+        エージェントの観測を返す
+        """
+        # グローバル状態を初期化
+        self.__init_full_obs()
+
+        # タイムステップをリセット
+        self._step_count = 0
+        # 報酬の総和
+        self._total_episode_reward = [0 for _ in range(self.n_agents)]
+        # 残っている果物の数
+        self._food_count = {'lemon': ((self._grid_shape[1] - 2) // 2) * self._grid_shape[0],
+                            'apple': ((self._grid_shape[1] - 2) // 2) * self._grid_shape[0]}
+        # 終了したか
+        self._agent_dones = [False for _ in range(self.n_agents)]
+        # 最大ステップを超えたか
+        self.steps_beyond_done = None
+
+        if self.debug:
+            logging.debug(
+                "Started Episode {}".format(self._episode_count).center(
+                    60, "*"
+                )
+            )
+
+        return self.get_obs(), self.get_state()
+
+    def step(self, agents_action):
+        """
+        行動を環境に出力してタイムステップを1つ進める
+
+        -> [ 報酬, 終了フラグ, 追加情報(残り個数) ]
+        """
+        # 人数分の行動が入力されているかチェック
+        assert len(agents_action) == self.n_agents
+        # タイムステップを進める
+        self._step_count += 1
+
+        if self.debug:
+            logging.debug("Actions".center(60, "-"))
+
+        # 時間経過によるマイナスの報酬
+        rewards = [0 for _ in range(self.n_agents)]
+
+        # エージェントごと
+        for agent_i, action in enumerate(agents_action):
+            # 行動をとって位置を移動
+            self.__update_agent_pos(agent_i, action)
+
+            # 前回と位置が変わっていたら
+            if self.agent_pos[agent_i] != self.agent_prev_pos[agent_i]:
+                for food in ['lemon', 'apple']:
+                    # 移動先に果物があるかを調べる
+                    if PRE_IDS[food] in self._full_obs[self.agent_pos[agent_i][0]][self.agent_pos[agent_i][1]]:
+                        # 果物をGETしたことによる報酬を獲得
+                        rewards[agent_i] += self.agent_reward[agent_i][food]
+                        # 果物の残数を更新
+                        self._food_count[food] -= 1
+                        break
+                # エージェントの移動をグリッドに反映
+                self.__update_agent_view(agent_i)
+
+        terminated = False
+        reward = sum(rewards) + self._step_cost
+        info = {
+            'apple_count': self._food_count["apple"],
+            'lemon_count': self._food_count["lemon"],
+        }
+
+        # 終了時
+        if self._food_count['apple'] == 0:  # 全てのリンゴをGETした
+            terminated = True
+            # 全エージェントの終了フラグを立てる
+            # for i in range(self.n_agents):
+            #     self._agent_dones[i] = True
+        elif self._step_count >= self._max_steps:  # 最大ステップ数を超えた
+            terminated = True
+            info["episode_limit"] = True
+            self.timeouts += 1
+
+        # 報酬の総和を更新
+        for i in range(self.n_agents):
+            self._total_episode_reward[i] += rewards[i]
+
+        # 終了したにも関わらずstep()を呼ばれた際のエラー用
+        if self.steps_beyond_done is None and terminated:
+            self.steps_beyond_done = 0
+        elif self.steps_beyond_done is not None:
+            if self.steps_beyond_done == 0:
+                logger.warning(
+                    "You are calling 'step()' even though this environment has already returned all(dones) = True for "
+                    "all agents. You should always call 'reset()' once you receive 'all(dones) = True' -- any further"
+                    " steps are undefined behavior.")
+            self.steps_beyond_done += 1
+
+        if self.debug:
+            logging.debug("Reward = {}, Personal rewards = {}".format(
+                reward, rewards).center(60, "-"))
+
+        if terminated:
+            self._episode_count += 1
+
+        # [報酬, 終了フラグ, 追加情報（残り個数）]
+        # return self.get_agent_obs(), rewards, self._agent_dones, {'food_count': self._food_count}
+        return reward, terminated, info
 
     def get_env_info(self):
         """
@@ -265,17 +375,6 @@ class Checkers(gym.Env):
 
         # return state
 
-    def reset(self):
-        self.__init_full_obs()
-        self._step_count = 0
-        self._total_episode_reward = [0 for _ in range(self.n_agents)]
-        self._food_count = {'lemon': ((self._grid_shape[1] - 2) // 2) * self._grid_shape[0],
-                            'apple': ((self._grid_shape[1] - 2) // 2) * self._grid_shape[0]}
-        self._agent_dones = [False for _ in range(self.n_agents)]
-        self.steps_beyond_done = None
-
-        return self.get_obs(), self.get_state()
-
     def is_valid(self, pos):
         return (0 <= pos[0] < self._grid_shape[0]) and (0 <= pos[1] < self._grid_shape[1])
 
@@ -307,48 +406,6 @@ class Checkers(gym.Env):
                        ][self.agent_prev_pos[agent_i][1]] = PRE_IDS['empty']
         self._full_obs[self.agent_pos[agent_i][0]][self.agent_pos[agent_i]
                                                    [1]] = PRE_IDS['agent'] + str(agent_i + 1)
-
-    def step(self, agents_action):
-        assert len(agents_action) == self.n_agents
-
-        self._step_count += 1
-        rewards = [self._step_cost for _ in range(self.n_agents)]
-
-        for agent_i, action in enumerate(agents_action):
-
-            self.__update_agent_pos(agent_i, action)
-
-            if self.agent_pos[agent_i] != self.agent_prev_pos[agent_i]:
-                for food in ['lemon', 'apple']:
-                    if PRE_IDS[food] in self._full_obs[self.agent_pos[agent_i][0]][self.agent_pos[agent_i][1]]:
-                        rewards[agent_i] += self.agent_reward[agent_i][food]
-                        self._food_count[food] -= 1
-                        break
-
-                self.__update_agent_view(agent_i)
-
-        if self._step_count >= self._max_steps or self._food_count['apple'] == 0:
-            for i in range(self.n_agents):
-                self._agent_dones[i] = True
-
-        for i in range(self.n_agents):
-            self._total_episode_reward[i] += rewards[i]
-
-        # Following snippet of code was refereed from:
-        # https://github.com/openai/gym/blob/master/gym/envs/classic_control/cartpole.py#L144
-        if self.steps_beyond_done is None and all(self._agent_dones):
-            self.steps_beyond_done = 0
-        elif self.steps_beyond_done is not None:
-            if self.steps_beyond_done == 0:
-                logger.warning(
-                    "You are calling 'step()' even though this environment has already returned all(dones) = True for "
-                    "all agents. You should always call 'reset()' once you receive 'all(dones) = True' -- any further"
-                    " steps are undefined behavior.")
-            self.steps_beyond_done += 1
-            rewards = [0 for _ in range(self.n_agents)]
-
-        # return self.get_agent_obs(), rewards, self._agent_dones, {'food_count': self._food_count}
-        return rewards, self._agent_dones, {'food_count': self._food_count}
 
     def render(self, mode='human'):
         for agent_i in range(self.n_agents):

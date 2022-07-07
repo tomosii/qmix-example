@@ -1,6 +1,7 @@
 import datetime
 import os
 import pprint
+import sys
 import time
 import threading
 import torch as th
@@ -68,9 +69,6 @@ def run(_run, _config, _log: lg.Logger):
             print("Thread joined")
 
     print("Exiting script")
-
-    # Making sure framework really exits
-    os._exit(os.EX_OK)
 
 
 def run_sequential(args, logger: Logger):

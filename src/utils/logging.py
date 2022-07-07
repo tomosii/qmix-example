@@ -1,6 +1,7 @@
 from collections import defaultdict
 import logging as lg
 import numpy as np
+import torch
 
 
 class Logger:
@@ -25,6 +26,8 @@ class Logger:
         self.use_sacred = True
 
     def log_stat(self, key, value, t, to_sacred=True):
+        if isinstance(value, torch.Tensor):
+            value = value.cpu()
         self.stats[key].append((t, value))
 
         if self.use_tb:
